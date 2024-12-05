@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import axios from "axios";
 import * as dotenv from "dotenv";
 const fs = require('fs');
 const path = require('path');
@@ -39,10 +40,29 @@ const helloWorldServiceManager = new ethers.Contract(helloWorldServiceManagerAdd
 const ecdsaRegistryContract = new ethers.Contract(ecdsaStakeRegistryAddress, ecdsaRegistryABI, wallet);
 const avsDirectory = new ethers.Contract(avsDirectoryAddress, avsDirectoryABI, wallet);
 
+// TODO: Use tokenName
+const fetchPrice = async (serviceKey: string, tokenName: string) => {
+  const url = 'https://apis.data.go.kr/1160100/service/GetBondSecuritiesInfoService/getBondPriceInfo';
+  const params = {
+    serviceKey: serviceKey,
+    numOfRows: '1',
+    resultType: 'json'
+  };
+
+  const response = await axios.get(url, { params })
+  const priceStr = response.data.response.body.items.item[0].clprPrc; // close price
+  const price = parseFloat(priceStr);
+  const priceBigInt = BigInt(Math.round(price * 1e8)); // Convert to decimals 8 bigint
+  return priceBigInt;
+}
 
 const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number, taskName: string) => {
-    const message = `Hello, ${taskName}`;
-    const messageHash = ethers.solidityPackedKeccak256(["string"], [message]);
+    // TODO: fetch USD/KRW price
+    const exchangeRate = BigInt(1400);
+    const price = await fetchPrice(process.env.SERVICE_KEY!, taskName);
+    const priceUSD = price / exchangeRate;
+    console.log("priceUSD: ", priceUSD);
+    const messageHash = ethers.solidityPackedKeccak256(["uint256"], [priceUSD]);
     const messageBytes = ethers.getBytes(messageHash);
     const signature = await wallet.signMessage(messageBytes);
 
@@ -58,6 +78,7 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
     const tx = await helloWorldServiceManager.respondToTask(
         { name: taskName, taskCreatedBlock: taskCreatedBlock },
         taskIndex,
+        priceUSD,
         signedTask
     );
     await tx.wait();
@@ -65,7 +86,7 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
 };
 
 const registerOperator = async () => {
-    
+
     // Registers as an Operator in EigenLayer.
     try {
         const tx1 = await delegationManager.registerAsOperator({
@@ -78,7 +99,7 @@ const registerOperator = async () => {
     } catch (error) {
         console.error("Error in registering as operator:", error);
     }
-    
+
     const salt = ethers.hexlify(ethers.randomBytes(32));
     const expiry = Math.floor(Date.now() / 1000) + 3600; // Example expiry, 1 hour from now
 
@@ -91,13 +112,13 @@ const registerOperator = async () => {
 
     // Calculate the digest hash, which is a unique value representing the operator, avs, unique value (salt) and expiration date.
     const operatorDigestHash = await avsDirectory.calculateOperatorAVSRegistrationDigestHash(
-        wallet.address, 
-        await helloWorldServiceManager.getAddress(), 
-        salt, 
+        wallet.address,
+        await helloWorldServiceManager.getAddress(),
+        salt,
         expiry
     );
     console.log(operatorDigestHash);
-    
+
     // Sign the digest hash with the operator's private key
     console.log("Signing digest hash with operator's private key");
     const operatorSigningKey = new ethers.SigningKey(process.env.PRIVATE_KEY!);
@@ -108,7 +129,6 @@ const registerOperator = async () => {
 
     console.log("Registering Operator to AVS Registry contract");
 
-    
     // Register Operator to AVS
     // Per release here: https://github.com/Layr-Labs/eigenlayer-middleware/blob/v0.2.1-mainnet-rewards/src/unaudited/ECDSAStakeRegistry.sol#L49
     const tx2 = await ecdsaRegistryContract.registerOperatorWithSignature(
@@ -120,18 +140,19 @@ const registerOperator = async () => {
 };
 
 const monitorNewTasks = async () => {
-    //console.log(`Creating new task "EigenWorld"`);
-    //await helloWorldServiceManager.createNewTask("EigenWorld");
-
     helloWorldServiceManager.on("NewTaskCreated", async (taskIndex: number, task: any) => {
-        console.log(`New task detected: Hello, ${task.name}`);
+        console.log(`New task detected: Fetch ${task.name} price`);
         await signAndRespondToTask(taskIndex, task.taskCreatedBlock, task.name);
+        // about $7
+        const newPrice = (await helloWorldServiceManager.tokenPrices(task.name)).price;
+        console.log("newPrice: ", newPrice);
     });
 
     console.log("Monitoring for new tasks...");
 };
 
 const main = async () => {
+    // NOTE: Register operator only once
     await registerOperator();
     monitorNewTasks().catch((error) => {
         console.error("Error monitoring tasks:", error);

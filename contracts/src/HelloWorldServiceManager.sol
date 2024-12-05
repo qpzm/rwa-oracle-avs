@@ -31,6 +31,13 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
     // mapping of task indices to hash of abi.encode(taskResponse, taskResponseMetadata)
     mapping(address => mapping(uint32 => bytes)) public allTaskResponses;
 
+    mapping(string => TokenPrice) public tokenPrices;
+
+    struct TokenPrice {
+        uint256 price;
+        uint256 timestamp;
+    }
+
     modifier onlyOperator() {
         require(
             ECDSAStakeRegistry(stakeRegistry).operatorRegistered(msg.sender),
@@ -75,6 +82,7 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
     function respondToTask(
         Task calldata task,
         uint32 referenceTaskIndex,
+        uint256 price,
         bytes memory signature
     ) external {
         // check that the task is valid, hasn't been responsed yet, and is being responded in time
@@ -88,7 +96,7 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
         );
 
         // The message that was signed
-        bytes32 messageHash = keccak256(abi.encodePacked("Hello, ", task.name));
+        bytes32 messageHash = keccak256(abi.encodePacked(price));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
         bytes4 magicValue = IERC1271Upgradeable.isValidSignature.selector;
         if (!(magicValue == ECDSAStakeRegistry(stakeRegistry).isValidSignature(ethSignedMessageHash,signature))){
@@ -97,6 +105,9 @@ contract HelloWorldServiceManager is ECDSAServiceManagerBase, IHelloWorldService
 
         // updating the storage with task responses
         allTaskResponses[msg.sender][referenceTaskIndex] = signature;
+        // Update token price
+        // TODO: respondToTask with the oracle timestamp
+        tokenPrices[task.name] = TokenPrice({price: price, timestamp: block.timestamp});
 
         // emitting event
         emit TaskResponded(referenceTaskIndex, task, msg.sender);

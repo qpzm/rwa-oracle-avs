@@ -31,10 +31,10 @@ async function createNewTask(taskName: string) {
   try {
     // Send a transaction to the createNewTask function
     const tx = await helloWorldServiceManager.createNewTask(taskName);
-    
+
     // Wait for the transaction to be mined
     const receipt = await tx.wait();
-    
+
     console.log(`Transaction successful with hash: ${receipt.hash}`);
   } catch (error) {
     console.error('Error sending transaction:', error);
@@ -44,10 +44,11 @@ async function createNewTask(taskName: string) {
 // Function to create a new task with a random name every 15 seconds
 function startCreatingTasks() {
   setInterval(() => {
-    const randomName = generateRandomName();
-    console.log(`Creating new task with name: ${randomName}`);
-    createNewTask(randomName);
-  }, 24000);
+    // const randomName = generateRandomName();
+    const tokenName = "KRBOND";
+    console.log(`Creating new task with name: ${tokenName}`);
+    createNewTask(tokenName);
+  }, 5000);
 }
 
 // Start the process
