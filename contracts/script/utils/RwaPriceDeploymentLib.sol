@@ -9,14 +9,15 @@ import {console2} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {ECDSAStakeRegistry} from "@eigenlayer-middleware/src/unaudited/ECDSAStakeRegistry.sol";
-import {HelloWorldServiceManager} from "../../src/HelloWorldServiceManager.sol";
+import {RwaPriceServiceManager} from "../../src/RwaPriceServiceManager.sol";
+import {IRwaPriceServiceManager} from "../../src/IRwaPriceServiceManager.sol";
 import {IDelegationManager} from "@eigenlayer/contracts/interfaces/IDelegationManager.sol";
 import {Quorum} from "@eigenlayer-middleware/src/interfaces/IECDSAStakeRegistryEventsAndErrors.sol";
 import {UpgradeableProxyLib} from "./UpgradeableProxyLib.sol";
 import {CoreDeploymentLib} from "./CoreDeploymentLib.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-library HelloWorldDeploymentLib {
+library RwaPriceDeploymentLib {
     using stdJson for *;
     using Strings for *;
     using UpgradeableProxyLib for address;
@@ -24,7 +25,7 @@ library HelloWorldDeploymentLib {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     struct DeploymentData {
-        address helloWorldServiceManager;
+        address rwaPriceServiceManager;
         address stakeRegistry;
         address strategy;
         address token;
@@ -38,22 +39,22 @@ library HelloWorldDeploymentLib {
         DeploymentData memory result;
 
         // First, deploy upgradeable proxy contracts that will point to the implementations.
-        result.helloWorldServiceManager = UpgradeableProxyLib.setUpEmptyProxy(proxyAdmin);
+        result.rwaPriceServiceManager = UpgradeableProxyLib.setUpEmptyProxy(proxyAdmin);
         result.stakeRegistry = UpgradeableProxyLib.setUpEmptyProxy(proxyAdmin);
         // Deploy the implementation contracts, using the proxy contracts as inputs
         address stakeRegistryImpl =
             address(new ECDSAStakeRegistry(IDelegationManager(core.delegationManager)));
-        address helloWorldServiceManagerImpl = address(
-            new HelloWorldServiceManager(
+        address rwaPriceServiceManagerImpl = address(
+            new RwaPriceServiceManager(
                 core.avsDirectory, result.stakeRegistry, core.rewardsCoordinator, core.delegationManager
             )
         );
         // Upgrade contracts
         bytes memory upgradeCall = abi.encodeCall(
-            ECDSAStakeRegistry.initialize, (result.helloWorldServiceManager, 0, quorum)
+            ECDSAStakeRegistry.initialize, (result.rwaPriceServiceManager, 0, quorum)
         );
         UpgradeableProxyLib.upgradeAndCall(result.stakeRegistry, stakeRegistryImpl, upgradeCall);
-        UpgradeableProxyLib.upgrade(result.helloWorldServiceManager, helloWorldServiceManagerImpl);
+        UpgradeableProxyLib.upgrade(result.rwaPriceServiceManager, rwaPriceServiceManagerImpl);
 
         return result;
     }
@@ -76,7 +77,7 @@ library HelloWorldDeploymentLib {
 
         DeploymentData memory data;
         /// TODO: 2 Step for reading deployment json.  Read to the core and the AVS data
-        data.helloWorldServiceManager = json.readAddress(".contracts.helloWorldServiceManager");
+        data.rwaPriceServiceManager = json.readAddress(".contracts.rwaPriceServiceManager");
         data.stakeRegistry = json.readAddress(".contracts.stakeRegistry");
         data.strategy = json.readAddress(".contracts.strategy");
         data.token = json.readAddress(".contracts.token");
@@ -97,7 +98,7 @@ library HelloWorldDeploymentLib {
         DeploymentData memory data
     ) internal {
         address proxyAdmin =
-            address(UpgradeableProxyLib.getProxyAdmin(data.helloWorldServiceManager));
+            address(UpgradeableProxyLib.getProxyAdmin(data.rwaPriceServiceManager));
 
         string memory deploymentData = _generateDeploymentJson(data, proxyAdmin);
 
@@ -132,10 +133,10 @@ library HelloWorldDeploymentLib {
         return string.concat(
             '{"proxyAdmin":"',
             proxyAdmin.toHexString(),
-            '","helloWorldServiceManager":"',
-            data.helloWorldServiceManager.toHexString(),
-            '","helloWorldServiceManagerImpl":"',
-            data.helloWorldServiceManager.getImplementation().toHexString(),
+            '","rwaPriceServiceManager":"',
+            data.rwaPriceServiceManager.toHexString(),
+            '","rwaPriceServiceManagerImpl":"',
+            data.rwaPriceServiceManager.getImplementation().toHexString(),
             '","stakeRegistry":"',
             data.stakeRegistry.toHexString(),
             '","stakeRegistryImpl":"',

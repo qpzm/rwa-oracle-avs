@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/Test.sol";
-import {HelloWorldDeploymentLib} from "./utils/HelloWorldDeploymentLib.sol";
+import {RwaPriceDeploymentLib} from "./utils/RwaPriceDeploymentLib.sol";
 import {CoreDeploymentLib} from "./utils/CoreDeploymentLib.sol";
 import {UpgradeableProxyLib} from "./utils/UpgradeableProxyLib.sol";
 import {StrategyBase} from "@eigenlayer/contracts/strategies/StrategyBase.sol";
@@ -20,7 +20,7 @@ import {
     IStrategy
 } from "@eigenlayer-middleware/src/interfaces/IECDSAStakeRegistryEventsAndErrors.sol";
 
-contract HelloWorldDeployer is Script {
+contract RwaPriceDeployer is Script {
     using CoreDeploymentLib for *;
     using UpgradeableProxyLib for address;
 
@@ -28,7 +28,7 @@ contract HelloWorldDeployer is Script {
     address proxyAdmin;
     IStrategy helloWorldStrategy;
     CoreDeploymentLib.DeploymentData coreDeployment;
-    HelloWorldDeploymentLib.DeploymentData helloWorldDeployment;
+    RwaPriceDeploymentLib.DeploymentData rwaPriceDeployment;
     Quorum internal quorum;
     ERC20Mock token;
     function setUp() public virtual {
@@ -36,7 +36,7 @@ contract HelloWorldDeployer is Script {
         vm.label(deployer, "Deployer");
 
         coreDeployment = CoreDeploymentLib.readDeploymentJson("deployments/core/", block.chainid);
-       
+
         token = new ERC20Mock();
         helloWorldStrategy = IStrategy(StrategyFactory(coreDeployment.strategyFactory).deployNewStrategy(token));
 
@@ -49,26 +49,26 @@ contract HelloWorldDeployer is Script {
         vm.startBroadcast(deployer);
         proxyAdmin = UpgradeableProxyLib.deployProxyAdmin();
 
-        helloWorldDeployment =
-            HelloWorldDeploymentLib.deployContracts(proxyAdmin, coreDeployment, quorum);
+        rwaPriceDeployment =
+            RwaPriceDeploymentLib.deployContracts(proxyAdmin, coreDeployment, quorum);
 
-        helloWorldDeployment.strategy = address(helloWorldStrategy);
-        helloWorldDeployment.token = address(token);
+        rwaPriceDeployment.strategy = address(helloWorldStrategy);
+        rwaPriceDeployment.token = address(token);
         vm.stopBroadcast();
 
         verifyDeployment();
-        HelloWorldDeploymentLib.writeDeploymentJson(helloWorldDeployment);
+        RwaPriceDeploymentLib.writeDeploymentJson(rwaPriceDeployment);
     }
 
     function verifyDeployment() internal view {
         require(
-            helloWorldDeployment.stakeRegistry != address(0), "StakeRegistry address cannot be zero"
+            rwaPriceDeployment.stakeRegistry != address(0), "StakeRegistry address cannot be zero"
         );
         require(
-            helloWorldDeployment.helloWorldServiceManager != address(0),
-            "HelloWorldServiceManager address cannot be zero"
+            rwaPriceDeployment.rwaPriceServiceManager != address(0),
+            "RwaPriceServiceManager address cannot be zero"
         );
-        require(helloWorldDeployment.strategy != address(0), "Strategy address cannot be zero");
+        require(rwaPriceDeployment.strategy != address(0), "Strategy address cannot be zero");
         require(proxyAdmin != address(0), "ProxyAdmin address cannot be zero");
         require(
             coreDeployment.delegationManager != address(0),

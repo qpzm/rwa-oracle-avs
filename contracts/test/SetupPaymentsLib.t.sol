@@ -4,14 +4,14 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "../script/utils/SetupPaymentsLib.sol";
 import "../script/utils/CoreDeploymentLib.sol";
-import "../script/utils/HelloWorldDeploymentLib.sol";
+import "../script/utils/RwaPriceDeploymentLib.sol";
 import "@eigenlayer/contracts/interfaces/IRewardsCoordinator.sol";
 import "@eigenlayer/contracts/interfaces/IStrategy.sol";
 import "@eigenlayer/contracts/libraries/Merkle.sol";
 import "../script/DeployEigenLayerCore.s.sol";
-import "../script/HelloWorldDeployer.s.sol";
+import "../script/RwaPriceDeployer.s.sol";
 import {StrategyFactory} from "@eigenlayer/contracts/strategies/StrategyFactory.sol";
-import {HelloWorldTaskManagerSetup} from "test/HelloWorldServiceManager.t.sol";
+import {RwaPriceTaskManagerSetup} from "test/HelloWorldServiceManager.t.sol";
 import {
     Quorum,
     StrategyParams,
@@ -29,7 +29,7 @@ contract TestConstants {
     uint256 NUM_EARNERS = 4;
 }
 
-contract SetupPaymentsLibTest is Test, TestConstants, HelloWorldTaskManagerSetup {
+contract SetupPaymentsLibTest is Test, TestConstants, RwaPriceTaskManagerSetup {
     using SetupPaymentsLib for *;
     Vm cheats = Vm(VM_ADDRESS);
 
@@ -40,7 +40,7 @@ contract SetupPaymentsLibTest is Test, TestConstants, HelloWorldTaskManagerSetup
 
     string internal constant filePath = "test/mockData/scratch/payments.json";
 
-    
+
     function setUp() public override virtual {
         proxyAdmin = UpgradeableProxyLib.deployProxyAdmin();
         coreConfigData =
@@ -52,9 +52,9 @@ contract SetupPaymentsLibTest is Test, TestConstants, HelloWorldTaskManagerSetup
         strategy = addStrategy(address(mockToken)); // Similar function to HW_SM test using strategy factory
         quorum.strategies.push(StrategyParams({strategy: strategy, multiplier: 10_000}));
 
-        helloWorldDeployment =
-            HelloWorldDeploymentLib.deployContracts(proxyAdmin, coreDeployment, quorum);
-        labelContracts(coreDeployment, helloWorldDeployment);
+        rwaPriceDeployment =
+            RwaPriceDeploymentLib.deployContracts(proxyAdmin, coreDeployment, quorum);
+        labelContracts(coreDeployment, rwaPriceDeployment);
 
         rewardsCoordinator = IRewardsCoordinator(coreDeployment.rewardsCoordinator);
         mockToken.mint(address(this), 100000);
@@ -115,7 +115,7 @@ contract SetupPaymentsLibTest is Test, TestConstants, HelloWorldTaskManagerSetup
         bytes32[] memory proof = new bytes32[](2);
         proof[0] = leaves[1];
         proof[1] = keccak256(abi.encodePacked(leaves[2], leaves[3]));
-        
+
         bytes memory proofBytesConstructed = abi.encodePacked(proof);
         bytes memory proofBytesCalculated = SetupPaymentsLib.generateMerkleProof(leaves, indexToProve);
 
@@ -134,11 +134,11 @@ contract SetupPaymentsLibTest is Test, TestConstants, HelloWorldTaskManagerSetup
             indexToProve
         ));
     }
- 
+
      function testProcessClaim() public {
         emit log_named_address("token address", address(mockToken));
         string memory filePath = "test/mockData/scratch/payments.json";
-        
+
         address[] memory earners = new address[](NUM_EARNERS);
         for (uint256 i = 0; i < earners.length; i++) {
             earners[i] = address(1);
@@ -155,7 +155,7 @@ contract SetupPaymentsLibTest is Test, TestConstants, HelloWorldTaskManagerSetup
 
 
         cheats.warp(block.timestamp + 2 weeks);
-        
+
         cheats.startPrank(earnerLeaves[INDEX_TO_PROVE].earner, earnerLeaves[INDEX_TO_PROVE].earner);
         SetupPaymentsLib.processClaim(
             rewardsCoordinator,
