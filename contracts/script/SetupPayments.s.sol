@@ -33,8 +33,7 @@ contract SetupPayments is Script {
         vm.label(deployer, "Deployer");
 
         coreDeployment = CoreDeploymentLib.readDeploymentJson("deployments/core/", block.chainid);
-        rwaPriceDeployment = RwaPriceDeploymentLib.readDeploymentJson("deployments/rwa-price/", block.chainid);
-
+        rwaPriceDeployment = RwaPriceDeploymentLib.readDeploymentJson("deployments/hello-world/", block.chainid);
         // TODO: Get the filePath from config
     }
 

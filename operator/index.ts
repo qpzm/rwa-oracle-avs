@@ -13,8 +13,8 @@ if (!Object.keys(process.env).length) {
 // Setup env variables
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
-/// TODO: Hack
-let chainId = 31337;
+// 11155420: op_sepolia
+let chainId = 11155420;
 
 const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/hello-world/${chainId}.json`), 'utf8'));
 // Load core deployment data
@@ -23,7 +23,7 @@ const coreDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `.
 
 const delegationManagerAddress = coreDeploymentData.addresses.delegation; // todo: reminder to fix the naming of this contract in the deployment file, change to delegationManager
 const avsDirectoryAddress = coreDeploymentData.addresses.avsDirectory;
-const helloWorldServiceManagerAddress = avsDeploymentData.addresses.helloWorldServiceManager;
+const rwaPriceServiceManagerAddress = avsDeploymentData.addresses.rwaPriceServiceManager;
 const ecdsaStakeRegistryAddress = avsDeploymentData.addresses.stakeRegistry;
 
 
@@ -31,12 +31,12 @@ const ecdsaStakeRegistryAddress = avsDeploymentData.addresses.stakeRegistry;
 // Load ABIs
 const delegationManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/IDelegationManager.json'), 'utf8'));
 const ecdsaRegistryABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/ECDSAStakeRegistry.json'), 'utf8'));
-const helloWorldServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/HelloWorldServiceManager.json'), 'utf8'));
+const rwaPriceServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/RwaPriceServiceManager.json'), 'utf8'));
 const avsDirectoryABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/IAVSDirectory.json'), 'utf8'));
 
 // Initialize contract objects from ABIs
 const delegationManager = new ethers.Contract(delegationManagerAddress, delegationManagerABI, wallet);
-const helloWorldServiceManager = new ethers.Contract(helloWorldServiceManagerAddress, helloWorldServiceManagerABI, wallet);
+const rwaPriceServiceManager = new ethers.Contract(rwaPriceServiceManagerAddress, rwaPriceServiceManagerABI, wallet);
 const ecdsaRegistryContract = new ethers.Contract(ecdsaStakeRegistryAddress, ecdsaRegistryABI, wallet);
 const avsDirectory = new ethers.Contract(avsDirectoryAddress, avsDirectoryABI, wallet);
 
@@ -61,21 +61,22 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
     const exchangeRate = BigInt(1400);
     const price = await fetchPrice(process.env.SERVICE_KEY!, taskName);
     const priceUSD = price / exchangeRate;
-    console.log("priceUSD: ", priceUSD);
+    console.log("KRBOND price in $: ", priceUSD);
     const messageHash = ethers.solidityPackedKeccak256(["uint256"], [priceUSD]);
     const messageBytes = ethers.getBytes(messageHash);
     const signature = await wallet.signMessage(messageBytes);
 
     console.log(`Signing and responding to task ${taskIndex}`);
 
-    const operators = [await wallet.getAddress()];
+    const walletAddress = await wallet.getAddress();
+    const operators = [walletAddress];
     const signatures = [signature];
     const signedTask = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address[]", "bytes[]", "uint32"],
         [operators, signatures, ethers.toBigInt(await provider.getBlockNumber()-1)]
     );
 
-    const tx = await helloWorldServiceManager.respondToTask(
+    const tx = await rwaPriceServiceManager.respondToTask(
         { name: taskName, taskCreatedBlock: taskCreatedBlock },
         taskIndex,
         priceUSD,
@@ -88,6 +89,8 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
 const registerOperator = async () => {
 
     // Registers as an Operator in EigenLayer.
+    console.log("wallet.address: %s", wallet.address)
+    console.log("rwaPriceServiceManager: %s", await rwaPriceServiceManager.getAddress());
     try {
         const tx1 = await delegationManager.registerAsOperator({
             __deprecated_earningsReceiver: await wallet.address,
@@ -113,7 +116,7 @@ const registerOperator = async () => {
     // Calculate the digest hash, which is a unique value representing the operator, avs, unique value (salt) and expiration date.
     const operatorDigestHash = await avsDirectory.calculateOperatorAVSRegistrationDigestHash(
         wallet.address,
-        await helloWorldServiceManager.getAddress(),
+        await rwaPriceServiceManager.getAddress(),
         salt,
         expiry
     );
@@ -140,12 +143,12 @@ const registerOperator = async () => {
 };
 
 const monitorNewTasks = async () => {
-    helloWorldServiceManager.on("NewTaskCreated", async (taskIndex: number, task: any) => {
+    rwaPriceServiceManager.on("NewTaskCreated", async (taskIndex: number, task: any) => {
         console.log(`New task detected: Fetch ${task.name} price`);
         await signAndRespondToTask(taskIndex, task.taskCreatedBlock, task.name);
         // about $7
-        const newPrice = (await helloWorldServiceManager.tokenPrices(task.name)).price;
-        console.log("newPrice: ", newPrice);
+        const newPrice = (await rwaPriceServiceManager.tokenPrices(task.name)).price;
+        console.log("Updated price: ", newPrice);
     });
 
     console.log("Monitoring for new tasks...");

@@ -6,15 +6,16 @@ dotenv.config();
 
 // Setup env variables
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
+const wallet = new ethers.Wallet(process.env.TASK_CREATOR_PRIVATE_KEY!, provider);
 /// TODO: Hack
-let chainId = 31337;
+let chainId = 11155420;
 
 const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/hello-world/${chainId}.json`), 'utf8'));
-const helloWorldServiceManagerAddress = avsDeploymentData.addresses.helloWorldServiceManager;
-const helloWorldServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/HelloWorldServiceManager.json'), 'utf8'));
+const rwaPriceServiceManagerAddress = avsDeploymentData.addresses.rwaPriceServiceManager;
+console.log("rwaPriceServiceManager ", rwaPriceServiceManagerAddress)
+const rwaPriceServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/RwaPriceServiceManager.json'), 'utf8'));
 // Initialize contract objects from ABIs
-const helloWorldServiceManager = new ethers.Contract(helloWorldServiceManagerAddress, helloWorldServiceManagerABI, wallet);
+const rwaPriceServiceManager = new ethers.Contract(rwaPriceServiceManagerAddress, rwaPriceServiceManagerABI, wallet);
 
 
 // Function to generate random names
@@ -30,7 +31,7 @@ function generateRandomName(): string {
 async function createNewTask(taskName: string) {
   try {
     // Send a transaction to the createNewTask function
-    const tx = await helloWorldServiceManager.createNewTask(taskName);
+    const tx = await rwaPriceServiceManager.createNewTask(taskName);
 
     // Wait for the transaction to be mined
     const receipt = await tx.wait();
@@ -43,12 +44,15 @@ async function createNewTask(taskName: string) {
 
 // Function to create a new task with a random name every 15 seconds
 function startCreatingTasks() {
+  // Start right away
+  const tokenName = "KRBOND";
+  console.log(`Creating new task with name: ${tokenName}`);
+  createNewTask(tokenName);
+
   setInterval(() => {
-    // const randomName = generateRandomName();
-    const tokenName = "KRBOND";
     console.log(`Creating new task with name: ${tokenName}`);
     createNewTask(tokenName);
-  }, 5000);
+  }, 20000);
 }
 
 // Start the process
